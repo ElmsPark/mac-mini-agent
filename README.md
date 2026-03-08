@@ -1,6 +1,6 @@
 # Mac Mini Agent
 
-**macOS automation for AI agents. Direct your agents to steer, drive and listen.**
+**macOS automation for AI agents. Direct your agents to steer, drive and listen. [Watch our agent](https://youtu.be/LOazLNQnB80) operate their own device.**
 
 <p align="center">
   <img src="assets/architecture-v3-animated.svg" alt="Steer Architecture" width="100%"/>
@@ -31,6 +31,8 @@ The Mac Mini Agent solves this with four purpose-built CLIs.
 **When you increase your agent's autonomy, you increase your own.** An agent that can only write code still needs you to test it, deploy it, and verify it. An agent that can see the screen, click buttons, orchestrate terminals, and operate across apps — that agent can ship while you sleep.
 
 Two Skills, Four CLIs. Many Macs. Full agent autonomy.
+
+Build the system that builds the system.
 
 ---
 
