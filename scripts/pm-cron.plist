@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://purl.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.elmspark.pm-smoke</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>/Users/kennjordan/Developer/elmspark/mac-mini-agent/scripts/pm-cron-smoke.sh</string>
+	</array>
+	<key>StartInterval</key>
+	<integer>1800</integer>
+	<key>StandardOutPath</key>
+	<string>/tmp/steer/cron-logs/launchd-smoke.out</string>
+	<key>StandardErrorPath</key>
+	<string>/tmp/steer/cron-logs/launchd-smoke.err</string>
+	<key>RunAtLoad</key>
+	<true/>
+</dict>
+</plist>

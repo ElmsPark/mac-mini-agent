@@ -1,14 +1,15 @@
-# Mac Mini Agent — PageMotor Testing Sandbox
+# Mac Mini Agent -- PageMotor Testing Sandbox
 
 This is a mac-mini-agent instance configured for autonomous testing of PageMotor CMS plugins and live sites.
 
 ## What This Does
 
-Autonomous agents (Claude Code) use Drive (terminal automation via tmux) to:
+Autonomous agents (Claude Code) use Drive (terminal) and Steer (GUI) to:
 - Build PageMotor plugins from source
-- Deploy built plugins to live sites via SFTP
-- Run HTTP smoke tests against all PageMotor sites
-- Verify plugin functionality via page content inspection
+- Deploy built plugins to the dev site via SFTP (production is blocked)
+- Run HTTP smoke tests against all PageMotor sites (8 sites, 6 checks each)
+- Open Safari, log into the admin, and verify plugin settings pages load
+- Take screenshots of key pages for human review
 - Report results back via job YAML files
 
 ## Quick Start
@@ -17,28 +18,44 @@ Autonomous agents (Claude Code) use Drive (terminal automation via tmux) to:
 # Terminal 1: Start the job server
 just listen
 
-# Terminal 2: Submit a job
-just send "Build ep-email plugin and smoke test all PageMotor sites"
+# Terminal 2: Submit jobs
+just pm-smoke                          # HTTP smoke test all sites
+just pm-test EP_Email                  # Browser-test a plugin settings page
+just pm-full ep-email                  # Build + deploy + smoke + browser verify
+just pm-visual                         # Screenshot key admin pages
 ```
 
 ## Architecture
 
-### Four Apps (Phase 1 uses Drive + Listen + Direct only)
+### Four Apps
 
-| App | Purpose | Phase |
-|-----|---------|-------|
-| **Drive** | Terminal automation via tmux | 1 (active) |
-| **Listen** | Job server, spawns Claude Code agents | 1 (active) |
-| **Direct** | CLI client, submits jobs | 1 (active) |
-| **Steer** | GUI automation (browser testing) | 2 (future) |
+| App | Purpose | Status |
+|-----|---------|--------|
+| **Drive** | Terminal automation via tmux | Active |
+| **Listen** | Job server, spawns Claude Code agents | Active |
+| **Direct** | CLI client, submits jobs | Active |
+| **Steer** | GUI automation (Safari browser testing) | Active |
 
 ### Skills
 
 | Skill | File | Purpose |
 |-------|------|---------|
 | drive | `.claude/skills/drive/SKILL.md` | tmux session/command management |
-| steer | `.claude/skills/steer/SKILL.md` | macOS GUI automation (Phase 2) |
-| pagemotor | `.claude/skills/pagemotor/SKILL.md` | Plugin build, SFTP deploy, HTTP smoke tests |
+| steer | `.claude/skills/steer/SKILL.md` | macOS GUI automation (14 commands) |
+| pagemotor | `.claude/skills/pagemotor/SKILL.md` | Build, deploy, smoke test, browser test |
+
+### Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `pm-smoke.sh` | 6-check HTTP smoke test across all sites |
+| `pm-deploy.sh` | SFTP deploy to dev site only (with backup) |
+| `pm-rollback.sh` | Restore from pre-deploy backup |
+| `pm-browser-login.sh` | Log into PageMotor admin via Safari |
+| `pm-browser-nav.sh` | Navigate Safari to an admin page |
+| `pm-browser-test.sh` | Run a browser test spec via the job server |
+| `pm-visual.sh` | Screenshot key pages for review |
+| `pm-cron-smoke.sh` | Scheduled smoke test with macOS notifications |
 
 ## PageMotor Context
 
@@ -46,15 +63,16 @@ PageMotor is a PHP CMS. Plugins are the primary development unit. Each plugin:
 - Lives in `/Users/kennjordan/Developer/elmspark/plugins/<name>/`
 - Has a `build.sh` that produces a ZIP in `dist/`
 - Gets deployed to shared hosting (IONOS) via SFTP
-- Has no automated test suite — testing is done via HTTP requests against live sites
+- Has no automated test suite, which is why this framework exists
 
 ### Critical Rules
 
 1. **NEVER deploy to production without testing on dev first** (cc-dev20260302.buildtheweb.site)
-2. **NEVER modify PageMotor core** — it's READ-ONLY
-3. **SFTP only** — no SSH access to the hosting server
-4. **Build before deploy** — sites load from installed files, not source
-5. **PHP errors show in HTML** — curl the page and grep for "fatal error"
+2. **NEVER modify PageMotor core** -- it's READ-ONLY
+3. **SFTP only** -- no SSH access to the hosting server
+4. **Build before deploy** -- sites load from installed files, not source
+5. **Browser tests are read-only** -- do not click save on settings pages during automated tests
+6. **One steer command per action** -- the screen changes after every GUI interaction
 
 ### Writing Rules
 
@@ -63,17 +81,27 @@ PageMotor is a PHP CMS. Plugins are the primary development unit. Each plugin:
 
 ## Common Jobs
 
-### Smoke test all sites
-```
-just send "Run HTTP smoke tests on all PageMotor sites. Check each returns 200 and has no PHP fatal errors in the response body."
-```
-
-### Build and test a specific plugin
-```
-just send "Build the ep-email plugin from /Users/kennjordan/Developer/elmspark/plugins/ep-email/build.sh, then deploy it to the dev site at cc-dev20260302.buildtheweb.site via SFTP, and verify the site still returns 200 with no PHP errors."
+### Phase 1: Terminal testing
+```bash
+just pm-smoke                          # Smoke test all 8 sites
+just pm-build ep-email                 # Build a plugin
+just pm-deploy ep-email                # Build + deploy to dev site
 ```
 
-### Check all sites are up
+### Phase 2: Browser testing
+```bash
+just pm-login                          # Log into admin via Safari
+just pm-test EP_Email                  # Browser-test plugin settings
+just pm-test-all                       # Test all plugin settings pages
+just pm-visual                         # Screenshot dashboard + plugins
+just pm-visual-plugin ep-email         # Also screenshot a plugin page
+just pm-full ep-email                  # Full cycle: build, deploy, smoke, browser
+just pm-spec specs/pm-tests/ep-email.md  # Run a structured test spec
 ```
-just send "Curl every PageMotor site homepage and report which ones return 200 and which don't. Sites: buildtheweb.site, helenmillar.com, birdsofbannowbay.com, epemail.elmspark.com, epbookings.elmspark.com, epgdpr.elmspark.com, epnewsletter.elmspark.com"
+
+### Scheduled testing
+```bash
+# Install the launchd job (runs smoke tests every 30 minutes)
+cp scripts/pm-cron.plist ~/Library/LaunchAgents/com.elmspark.pm-smoke.plist
+launchctl load ~/Library/LaunchAgents/com.elmspark.pm-smoke.plist
 ```

@@ -142,14 +142,74 @@ pm-build plugin:
 pm-deploy plugin:
     just send "Build the {{plugin}} plugin by running bash /Users/kennjordan/Developer/elmspark/plugins/{{plugin}}/build.sh, then deploy it to the dev site (cc-dev20260302.buildtheweb.site) via SFTP. After deployment, curl the dev site homepage and verify it returns 200 with no PHP fatal errors."
 
-# --- Demo walkthrough ---
+# --- Phase 2: Browser testing ---
+
+# Build the steer binary
+steer-build:
+    cd apps/steer && swift build -c release 2>&1 | tail -5
+    @echo "Binary: apps/steer/.build/release/steer"
+
+# Verify steer permissions work
+steer-verify:
+    #!/usr/bin/env bash
+    STEER="apps/steer/.build/release/steer"
+    PASS=0; FAIL=0
+    echo "Steer Verification"
+    echo "=================="
+    for cmd in "see --json" "ocr --json" "apps --json"; do
+        if $STEER $cmd > /dev/null 2>&1; then echo "PASS  steer $cmd"; PASS=$((PASS+1))
+        else echo "FAIL  steer $cmd"; FAIL=$((FAIL+1)); fi
+    done
+    echo ""; echo "$PASS passed, $FAIL failed"
+    [ $FAIL -eq 0 ] || exit 1
+
+# Log into PageMotor admin via Safari
+pm-login:
+    bash scripts/pm-browser-login.sh
+
+# Browser-test a specific plugin's settings page
+pm-test plugin:
+    just send "Log into the PageMotor admin at cc-dev20260302.buildtheweb.site using the steer CLI. Navigate to /admin/plugins/?plugin={{plugin}}, take a screenshot with steer see, verify the page loads with no PHP errors (search for 'fatal error' and 'parse error'), verify form fields exist, and report pass/fail with the screenshot path."
+
+# Browser-test all plugin settings pages
+pm-test-all:
+    just send "Log into PageMotor admin at cc-dev20260302.buildtheweb.site using the steer CLI. For each of these plugins, navigate to its settings page, screenshot it, and verify no PHP errors: EP_Email, EP_GDPR, EP_Newsletter, EP_Support, EP_Booking. Report a summary table of pass/fail per plugin with screenshot paths."
+
+# Take visual snapshots of the dev site
+pm-visual:
+    bash scripts/pm-visual.sh
+
+# Visual snapshot including a specific plugin
+pm-visual-plugin plugin:
+    bash scripts/pm-visual.sh {{plugin}}
+
+# Full cycle: build, deploy, smoke, and browser verify
+pm-full plugin:
+    just send "Build the {{plugin}} plugin by running bash /Users/kennjordan/Developer/elmspark/plugins/{{plugin}}/build.sh, then deploy to dev site using bash /Users/kennjordan/Developer/elmspark/mac-mini-agent/scripts/pm-deploy.sh {{plugin}}, then run bash /Users/kennjordan/Developer/elmspark/mac-mini-agent/scripts/pm-smoke.sh https://cc-dev20260302.buildtheweb.site, then open Safari with steer, log into the admin, navigate to the plugin settings page, and verify it loads with no PHP errors. Report all results."
+
+# Run a browser test spec
+pm-spec spec:
+    bash scripts/pm-browser-test.sh {{spec}}
+
+# --- Reference ---
 # 1. just listen          (start server in one terminal)
 # 2. just send "prompt"   (kick off a job from another terminal)
 # 3. just jobs            (see all jobs)
 # 4. just job <id>        (check a specific job)
 # 5. just stop <id>       (kill a running job)
 #
-# --- PageMotor shortcuts ---
+# --- Phase 1: Terminal testing ---
 # just pm-smoke                    (smoke test all sites)
 # just pm-build ep-email           (build a specific plugin)
 # just pm-deploy ep-email          (build + deploy to dev site)
+#
+# --- Phase 2: Browser testing ---
+# just steer-build                 (build the steer binary)
+# just steer-verify                (check permissions work)
+# just pm-login                    (log into admin via Safari)
+# just pm-test EP_Email            (browser-test a plugin)
+# just pm-test-all                 (browser-test all plugins)
+# just pm-visual                   (screenshot key pages)
+# just pm-visual-plugin ep-email   (screenshot + plugin page)
+# just pm-full ep-email            (build + deploy + smoke + browser)
+# just pm-spec specs/pm-tests/ep-email.md  (run a test spec)
