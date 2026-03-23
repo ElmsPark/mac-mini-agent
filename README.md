@@ -1,329 +1,157 @@
-# Mac Mini Agent
+# Mac Mini Agent for PageMotor
 
-**macOS automation for AI agents. Direct your agents to steer, drive and listen. [Watch our agent](https://youtu.be/LOazLNQnB80) operate their own device.**
+Autonomous plugin testing for PageMotor CMS. Build plugins, deploy to staging, smoke test live sites, verify admin pages via Safari, and get notified if anything breaks.
 
-<p align="center">
-  <img src="assets/architecture-v3-animated.svg" alt="Steer Architecture" width="100%"/>
-</p>
+Built on top of [disler/mac-mini-agent](https://github.com/disler/mac-mini-agent), customised for the EP Suite plugin development workflow.
 
-Engineers are already using AI agents to write code — but those agents are trapped inside the terminal. Steer is the missing layer between "agent writes code" and "agent ships features." It gives AI agents full control of your Mac: clicking buttons, reading screens via OCR, typing into any app, and orchestrating terminals via tmux.
+## What It Does
 
----
+An AI agent (Claude Code) runs on your Mac and autonomously:
 
-## The Problem
-
-AI agents can write code, plan, and reason. But they can't open an app. They can't click a button. They can't read what's on your screen. There's a massive gap between an agent that writes code and an agent that ships features.
-
-That gap is **computer use**. And for macOS, the existing tools fall short:
-
-- **Accessibility trees return nothing** for Electron apps (VS Code, Slack, Notion)
-- **Terminal agents** can run commands but can't see output, recover from errors, or coordinate with GUI tools
-- **No orchestration layer** exists to combine terminal control with GUI automation
-
-The Mac Mini Agent solves this with four purpose-built CLIs.
-
-## The Solution
-
-> Soon, there will be more agents operating computers than engineers operating computers — but you can be the one who deploys and controls them.
->
-> The Mac Mini Agent is a minimal toolkit you can adopt to deploy onto any of your [Mac devices](https://www.apple.com/newsroom/), to give AI agents the power to use your computer like you do.
-
-**When you increase your agent's autonomy, you increase your own.** An agent that can only write code still needs you to test it, deploy it, and verify it. An agent that can see the screen, click buttons, orchestrate terminals, and operate across apps — that agent can ship while you sleep.
-
-Two Skills, Four CLIs. Many Macs. Full agent autonomy.
-
----
-
-## Who Is This For?
-
-Mid-Senior+ engineers who want to move beyond terminal agent interactions into true computer-use agents that can operate autonomously across an entire environment.
-
-If your agent can write code but can't ship it — Steer and Drive close that gap.
-
----
-
-## Apps
-
-### Steer — GUI Control
-
-> macOS automation CLI for AI agents. Eyes and hands on your Mac.
-
-**Swift** · v0.2.0 · 14 commands
-
-Steer gives agents the ability to see, interact with, and control any macOS application through screenshots, OCR, accessibility trees, and input simulation.
-
-<p align="center">
-  <img src="assets/diagrams/steer-command-fan.svg" alt="Steer Commands" width="600"/>
-</p>
-
-| Command     | Purpose                                             |
-| ----------- | --------------------------------------------------- |
-| `see`       | Capture screenshots of apps, windows, or screens    |
-| `click`     | Click at coordinates or on detected text elements   |
-| `type`      | Type text into any focused application              |
-| `hotkey`    | Send keyboard shortcuts (cmd+s, cmd+tab, etc.)      |
-| `scroll`    | Scroll in any direction within an app               |
-| `drag`      | Drag from one point to another                      |
-| `apps`      | List running applications                           |
-| `screens`   | List available displays                             |
-| `window`    | Move, resize, and manage windows                    |
-| `ocr`       | Extract text from screen via Vision framework       |
-| `focus`     | Activate and focus a specific application           |
-| `find`      | Locate UI elements on screen                        |
-| `clipboard` | Read and write the system clipboard                 |
-| `wait`      | Wait for conditions (element visible, text appears) |
-
-#### OCR: The Equalizer
-
-Electron apps (VS Code, Slack, Notion) return **completely empty accessibility trees**. Every AI agent trying to interact with these apps is flying blind — unless you use OCR.
-
-<p align="center">
-  <img src="assets/diagrams/ocr-equalizer.svg" alt="OCR Equalizer" width="700"/>
-</p>
-
-One command — `steer ocr --store` — and suddenly every piece of text on screen becomes a clickable, addressable element. This was the breakthrough that unlocked everything else.
-
----
-
-### Drive — Terminal Control
-
-> Terminal automation CLI for AI agents. Programmatic tmux control.
-
-**Python** · v0.1.0 · 6 commands
-
-Drive gives agents full programmatic control over tmux sessions — creating terminals, sending commands, reading output, and orchestrating parallel workloads.
-
-<p align="center">
-  <img src="assets/diagrams/drive-command-flow.svg" alt="Drive Command Flow" width="450"/>
-</p>
-
-| Command   | Purpose                                                  |
-| --------- | -------------------------------------------------------- |
-| `session` | Create, list, and manage tmux sessions                   |
-| `run`     | Execute a command in a tmux pane and wait for completion |
-| `send`    | Send keystrokes to a tmux pane                           |
-| `logs`    | Capture pane output (capture-pane)                       |
-| `poll`    | Wait for a sentinel marker indicating command completion |
-| `fanout`  | Execute commands across multiple panes in parallel       |
-
-#### The Sentinel Pattern
-
-Drive uses a sentinel marker pattern (`__DONE_<token>:<exit_code>`) to reliably detect when commands complete in tmux sessions. This is what makes async terminal orchestration deterministic instead of guesswork.
-
-<p align="center">
-  <img src="assets/diagrams/sentinel-pattern.svg" alt="Sentinel Pattern" width="700"/>
-</p>
-
----
-
-### Listen — Job Server
-
-> HTTP server + job manager for remote agent execution.
-
-**Python** · v0.1.0 · FastAPI
-
-Listen accepts job requests over HTTP, spawns Claude Code agents as worker processes, and tracks their progress via YAML job files. It's the dispatch layer that turns a prompt into a running agent.
-
-| Endpoint           | Purpose                                |
-| ------------------ | -------------------------------------- |
-| `POST /job`        | Submit a prompt, get back a job ID     |
-| `GET /job/{id}`    | Check job status, updates, and summary |
-| `GET /jobs`        | List all jobs                          |
-| `DELETE /job/{id}` | Stop a running job                     |
-
-```bash
-just listen                    # Start server on port 7600
-just send "Open Safari..."     # Submit a job via Direct
-just jobs                      # List all jobs
-just job <id>                  # Check a specific job
-just latest                    # Full details of the most recent job
-just latest 3                  # Full details of the last 3 jobs
-```
-
----
-
-### Direct — CLI Client
-
-> CLI client for the Listen server.
-
-**Python** · v0.1.0 · httpx + Click
-
-Direct is the command-line interface for sending prompts to Listen. It starts jobs, checks their status, and stops them.
-
-| Command  | Purpose                                |
-| -------- | -------------------------------------- |
-| `start`  | Submit a new job prompt                |
-| `get`    | Get current state of a job             |
-| `list`   | List all jobs                          |
-| `latest` | Show full details of the latest N jobs |
-| `stop`   | Stop a running job                     |
-
----
-
-## Key Patterns
-
-### Cross-App Pipelines
-
-Combine Steer and Drive to build pipelines that span multiple applications without human input:
-
-<p align="center">
-  <img src="assets/diagrams/cross-app-pipeline.svg" alt="Cross-App Pipeline" width="700"/>
-</p>
-
-```
-Read GitHub issue (Browser via OCR) → Run Claude Code (Terminal via Drive) → Log result (Notion via Steer)
-```
-
-### Agent-on-Agent Orchestration
-
-One AI agent can control other AI agents through tmux — sending prompts, monitoring output, and managing sessions:
-
-<p align="center">
-  <img src="assets/diagrams/agent-inception.svg" alt="Agent Inception" width="500"/>
-</p>
-
-A primary Claude Code instance spins up tmux sessions, launches secondary agents, prompts them, monitors their work, and closes them when done. Agent inception — visible in real time.
-
-### Multi-Window Orchestration
-
-Agents can operate across your entire desktop simultaneously — researching in the browser, coding in the terminal, documenting in Notion, monitoring logs:
-
-<p align="center">
-  <img src="assets/diagrams/multi-window-tile.svg" alt="Multi-Window Orchestration" width="600"/>
-</p>
-
-### Self-Healing Automation
-
-Production-grade agents need resilience. Steer's `wait`, `find`, and `ocr` commands enable self-healing flows that recover from timeouts and errors:
-
-<p align="center">
-  <img src="assets/diagrams/self-healing-flow.svg" alt="Self-Healing Flow" width="700"/>
-</p>
-
----
-
-## Custom Agent Support
-
-Steer and Drive are agent-agnostic tools. Any Skill + CLI-based AI agent can use them:
-
-- **Claude Code** — Anthropic's CLI agent
-- **Pi Agent** — Custom agent framework
-- **Gemini CLI** — Google's CLI agent
-- **Codex CLI** — OpenAI's CLI agent
-- **OpenCode** — Open-source alternative
-- **Cursor CLI** - Cursor's CLI agent
-
-The agent just needs to be able to invoke shell commands. Steer and Drive handle the rest.
-
----
+- **Builds** any of your PageMotor plugins from source
+- **Deploys** to a staging site via SFTP (production is blocked in code)
+- **Smoke tests** all your live sites (6 checks: HTTP status, body size, PHP errors, HTML structure, PageMotor markers, response time)
+- **Logs into** the PageMotor admin via Safari and verifies settings pages render correctly
+- **Screenshots** the frontend, dashboard, plugin list, and plugin settings for human review
+- **Monitors** every 30 minutes and sends a macOS notification if a site goes down
+- **Rolls back** deployments automatically if something breaks
 
 ## Quick Start
 
 ```bash
-# GUI automation
-steer see --app Safari                    # Screenshot Safari
-steer ocr --app "VS Code" --store         # OCR all text in VS Code
-steer click --text "Submit"               # Click the "Submit" button
-steer type "Hello, world"                 # Type text
+# Install dependencies
+brew install tmux just uv yq
 
-# Terminal automation
-drive session create --name agent-1       # Create tmux session
-drive run --session agent-1 "npm test"    # Run command and wait
-drive logs --session agent-1              # Capture output
-drive fanout --sessions a1,a2,a3 "build"  # Parallel execution
+# Clone and build
+git clone https://github.com/ElmsPark/mac-mini-agent.git
+cd mac-mini-agent
+cd apps/steer && swift build -c release && cd ../..
+
+# Grant macOS permissions (System Settings > Privacy & Security)
+# - Accessibility (for clicking, typing, reading UI elements)
+# - Screen Recording (for screenshots)
+
+# Configure credentials
+cp .env.sample .env
+# Edit .env with your SFTP credentials, Anthropic API key, and admin login
+
+# Start the job server
+just listen
 ```
 
----
-
-## Project Structure
-
-```
-mac-mini-agent/
-├── apps/
-│   ├── steer/          # Swift CLI — macOS GUI automation
-│   │   └── Sources/
-│   │       └── steer/  # 14 command implementations
-│   ├── drive/          # Python CLI — tmux terminal control
-│   │   └── commands/   # 6 command implementations
-│   ├── listen/         # Python — FastAPI job server
-│   │   ├── jobs/       # YAML job state files
-│   │   └── worker.py   # Agent spawner
-│   └── direct/         # Python — CLI client for Listen
-└── assets/
-    ├── architecture-v3.svg
-    ├── architecture-v3-animated.svg
-    └── diagrams/       # Animated concept diagrams
-```
-
----
-
-## Setup
-
-The system runs across two machines: a **Mac Mini** that agents control autonomously, and your **primary Mac** where you work and send jobs. Each has a dedicated install command that handles dependencies, configuration, and verification.
-
-### Mac Mini Device (Agent Sandbox)
-
-The Mac Mini is the agent's workstation — it runs Listen, executes jobs, and gives agents full GUI + terminal access.
-
-**Automated setup**: Run the installer directly on the Mac Mini:
+## Usage
 
 ```bash
-/install-agent-sandbox
+# Terminal testing
+just pm-smoke                          # smoke test all sites
+just pm-build ep-email                 # build a plugin
+just pm-deploy ep-email                # build + deploy to staging
+
+# Browser testing
+just pm-login                          # log into admin via Safari
+just pm-test ep-email                  # browser-test a plugin settings page
+just pm-test-all                       # test all plugin settings pages
+just pm-visual                         # screenshot key admin pages
+
+# Full cycle
+just pm-full ep-email                  # build + deploy + smoke + browser verify
+
+# Job management
+just jobs                              # list all jobs
+just latest                            # see latest result
+just stop <id>                         # kill a running job
+
+# Fast mode (tmux worker, fewer tokens, faster)
+just send-fast "your prompt here"
 ```
 
-This installs all dependencies (Swift, tmux, uv, just, yq, Claude Code), builds steer, sets up Python environments, and runs a 10-check verification suite covering screenshots, OCR, tmux sessions, the listen server, and more.
+## Architecture
 
-**Manual prerequisites** (must be done through System Settings — the installer will remind you):
+Four apps, all running locally on your Mac:
 
-| Permission             | Why                                              | How                                                                    |
-| ---------------------- | ------------------------------------------------ | ---------------------------------------------------------------------- |
-| **Accessibility**      | Steer needs to click, type, and read UI elements | System Settings > Privacy & Security > Accessibility > add Terminal    |
-| **Screen Recording**   | Steer needs to capture screenshots (`steer see`) | System Settings > Privacy & Security > Screen Recording > add Terminal |
-| **Full Disk Access**   | Required for `systemsetup` and broad file access | System Settings > Privacy & Security > Full Disk Access > add Terminal |
-| **Remote Login (SSH)** | Lets you manage the sandbox remotely             | System Settings > General > Sharing > toggle Remote Login on           |
+| App | What it does |
+|-----|-------------|
+| **Steer** | macOS GUI automation (Safari control, screenshots, OCR, clicking, typing) |
+| **Drive** | Terminal automation via tmux (run commands, read output, parallel execution) |
+| **Listen** | Job server on port 7600 (accepts jobs via HTTP, spawns AI agents) |
+| **Direct** | CLI client for submitting jobs to Listen |
 
-Once installed, start the agent server:
+The AI agent reads a PageMotor-specific skill file (`.claude/skills/pagemotor/SKILL.md`) that teaches it your plugin conventions, site URLs, SFTP paths, and testing workflows.
+
+## Security
+
+- **Production deployment blocked in code.** The deploy script has a hard-coded bash guard that rejects any SFTP path outside the staging site. This is a string comparison, not an AI instruction.
+- **Credentials in `.env` only.** Gitignored. SFTP passwords passed via environment variable (`sshpass -e`), never on the command line.
+- **Job server requires API key.** All endpoints check the `X-API-Key` header.
+- **30-minute timeout.** Stuck jobs are killed automatically.
+- **Browser tests are read-only.** The agent verifies pages load but never clicks Save.
+- **No skill marketplace.** One hand-written skill file, checked into git.
+
+## Two Worker Modes
+
+| Mode | Command | Speed | Auth | Best for |
+|------|---------|-------|------|----------|
+| **Fast** (default) | `just send-fast` | ~30-80s | Subscription or API key | Quick jobs, smoke tests |
+| **SDK** | `just send` | ~90s | API key only | Complex jobs, future hooks/subagents |
+
+Set the default in `.env` with `WORKER_MODE=fast` or `WORKER_MODE=sdk`.
+
+## Persistent Service
+
+Install Listen as a background service that survives reboots:
 
 ```bash
-just listen    # Starts Listen on port 7600
+just listen-install                    # install and start
+just listen-status                     # check if running
+just listen-uninstall                  # stop and remove
 ```
 
----
+## Scheduled Monitoring
 
-### Primary Device (Engineer Devbox)
-
-Your laptop is where you send prompts and monitor jobs. It only needs the CLI client tools.
-
-**Automated setup**: Run the installer on your primary Mac:
+Install the smoke test cron (runs every 30 minutes):
 
 ```bash
-/install-engineer-devbox <mac-mini-ip-or-hostname>
+cp scripts/pm-cron.plist ~/Library/LaunchAgents/com.elmspark.pm-smoke.plist
+launchctl load ~/Library/LaunchAgents/com.elmspark.pm-smoke.plist
 ```
 
-This installs minimal dependencies (uv, just), configures the sandbox URL, and runs a 6-check verification suite covering network connectivity, the listen server, SSH access, and an end-to-end job test.
+Sends a macOS notification if any site fails.
 
-Once installed, send jobs:
+## Test Specs
 
-```bash
-just send "Open Safari, navigate to news.ycombinator.com, and read the top 3 headlines"
-just jobs              # List all jobs
-just job <id>          # Check a specific job
-just stop <id>         # Kill a running job
-```
+Structured browser test definitions in `specs/pm-tests/`:
 
-**SSH access** (optional, for debugging):
+- `login.md` -- Admin login flow
+- `dashboard.md` -- Dashboard loads with module cards
+- `plugins-list.md` -- Plugin list with activation controls
+- `plugin-upload.md` -- Manage Plugins upload UI
+- `ep-email.md` -- EP Email settings page
+- `ep-gdpr.md` -- EP GDPR settings page
+- `ep-newsletter.md` -- EP Newsletter settings page
+- `ep-booking.md` -- EP Booking settings page
+- `ep-support.md` -- EP Support settings page
+- `frontend.md` -- Frontend renders correctly
 
-```bash
-ssh <user>@<mac-mini-ip>
-# or via Bonjour
-ssh <user>@<hostname>.local
-```
+## Scripts
 
----
+| Script | Purpose |
+|--------|---------|
+| `pm-smoke.sh` | 6-check HTTP smoke test across all sites |
+| `pm-deploy.sh` | SFTP deploy to staging with automatic backup |
+| `pm-rollback.sh` | Restore from pre-deploy backup |
+| `pm-browser-login.sh` | Automated Safari login to PageMotor admin |
+| `pm-browser-nav.sh` | Navigate Safari to admin pages |
+| `pm-browser-test.sh` | Run browser test specs via the job server |
+| `pm-visual.sh` | Screenshot key pages for review |
+| `pm-cron-smoke.sh` | Scheduled smoke tests with macOS notifications |
 
-## Master Agentic Coding
-> Prepare for the future of software engineering
+## Requirements
 
-Software engineering has changed... **Have you**? Catch up and move beyond the AI tech industry with [Tactical Agentic Coding](https://agenticengineer.com/tactical-agentic-coding?y=mmag)
+- macOS 13 or later
+- Homebrew, Swift (Xcode CLI Tools), tmux, just, uv, yq
+- Claude Code subscription or Anthropic API key
+- SFTP access to your PageMotor hosting
 
-Follow the [IndyDevDan YouTube channel](https://www.youtube.com/@indydevdan) to improve your agentic coding advantage.
+## Credits
+
+Built on [mac-mini-agent](https://github.com/disler/mac-mini-agent) by [IndyDevDan](https://github.com/disler). Steer (GUI automation) and Drive (terminal automation) are his work. The PageMotor skill, testing scripts, security hardening, Agent SDK integration, and launchd service are additions by [ElmsPark](https://github.com/ElmsPark).
