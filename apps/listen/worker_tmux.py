@@ -118,12 +118,10 @@ def main():
 
     start_time = time.time()
 
-    # Strip CLAUDECODE and ANTHROPIC_API_KEY from env.
-    # CLAUDECODE: prevents nested claude conflicts.
-    # ANTHROPIC_API_KEY: forces CLI to use Max subscription auth
-    # instead of pay-per-token API billing.
-    strip_keys = {"CLAUDECODE", "ANTHROPIC_API_KEY"}
-    env_clean = {k: v for k, v in os.environ.items() if k not in strip_keys}
+    # Strip CLAUDECODE from env so nested claude doesn't conflict.
+    # Keep ANTHROPIC_API_KEY -- needed when running as a launchd service
+    # where the CLI's subscription login context isn't available.
+    env_clean = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     os.environ.clear()
     os.environ.update(env_clean)
 

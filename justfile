@@ -10,9 +10,50 @@ default_url := if _sandbox_url == "" { "http://localhost:7600" } else { _sandbox
 default:
     @just --list
 
-# Start the listen server
+# Start the listen server (foreground, for development)
 listen:
     cd apps/listen && uv run python main.py
+
+# Install Listen as a persistent background service (survives reboots)
+listen-install:
+    #!/usr/bin/env bash
+    mkdir -p /tmp/steer
+    cp scripts/pm-listen.plist ~/Library/LaunchAgents/com.elmspark.pm-listen.plist
+    launchctl load ~/Library/LaunchAgents/com.elmspark.pm-listen.plist
+    sleep 2
+    if curl -s -o /dev/null -w "%{http_code}" -H "X-API-Key: ${LISTEN_API_KEY:-}" http://localhost:7600/jobs 2>/dev/null | grep -q "200\|401"; then
+        echo "Listen service installed and running on port 7600."
+        echo "It will start automatically on boot."
+        echo "Logs: tail -f /tmp/steer/listen-service.out"
+    else
+        echo "WARNING: Service installed but not responding yet. Check:"
+        echo "  tail -f /tmp/steer/listen-service.err"
+    fi
+
+# Stop and remove the Listen background service
+listen-uninstall:
+    #!/usr/bin/env bash
+    launchctl unload ~/Library/LaunchAgents/com.elmspark.pm-listen.plist 2>/dev/null || true
+    rm -f ~/Library/LaunchAgents/com.elmspark.pm-listen.plist
+    echo "Listen service stopped and removed."
+
+# Check if the Listen service is running
+listen-status:
+    #!/usr/bin/env bash
+    if launchctl list | grep -q com.elmspark.pm-listen; then
+        CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "X-API-Key: ${LISTEN_API_KEY:-}" http://localhost:7600/jobs 2>/dev/null)
+        echo "Listen service: INSTALLED"
+        echo "HTTP status: $CODE"
+        if [ "$CODE" = "200" ] || [ "$CODE" = "401" ]; then
+            echo "Status: RUNNING"
+        else
+            echo "Status: NOT RESPONDING (check logs)"
+            echo "  tail -f /tmp/steer/listen-service.err"
+        fi
+    else
+        echo "Listen service: NOT INSTALLED"
+        echo "Install with: just listen-install"
+    fi
 
 # Send a job to the listen server (default: SDK worker)
 send prompt url=default_url:
