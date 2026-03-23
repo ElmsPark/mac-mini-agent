@@ -106,6 +106,7 @@ bash /Users/kennjordan/Developer/elmspark/mac-mini-agent/scripts/pm-deploy.sh <p
 | miraclebibleway.com | https://miraclebibleway.com | `/miraclebibleway` |
 | nosampling.com | https://nosampling.com | `/nosampling` |
 | everytanisdamage.com | https://everytanisdamage.com | `/sun` |
+| dev2.elmspark.com | https://dev2.elmspark.com | `/dev2` |
 | cc-dev20260302.buildtheweb.site | https://cc-dev20260302.buildtheweb.site | `/buildtheweb-dev` |
 
 ## Workflows

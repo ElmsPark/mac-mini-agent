@@ -31,6 +31,7 @@ ALL_SITES=(
   "https://miraclebibleway.com"
   "https://nosampling.com"
   "https://everytanisdamage.com"
+  "https://dev2.elmspark.com"
   "https://cc-dev20260302.buildtheweb.site"
 )
 
