@@ -1,10 +1,11 @@
 [project]
 name = "listen"
-version = "0.1.0"
+version = "0.2.0"
 description = "HTTP server + job manager for remote agent execution"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi",
     "uvicorn",
     "pyyaml",
+    "claude-agent-sdk>=0.1.50",
 ]

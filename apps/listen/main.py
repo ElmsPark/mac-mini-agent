@@ -57,11 +57,12 @@ def create_job(req: JobRequest, _auth=Depends(_verify_api_key)):
     with open(job_file, "w") as f:
         yaml.dump(job_data, f, default_flow_style=False, sort_keys=False)
 
-    # Spawn the worker process
+    # Spawn the worker process (cwd = repo root so SDK finds .claude/skills/)
     worker_path = Path(__file__).parent / "worker.py"
+    repo_root = Path(__file__).parent.parent.parent
     proc = subprocess.Popen(
         [sys.executable, str(worker_path), job_id, req.prompt],
-        cwd=str(Path(__file__).parent),
+        cwd=str(repo_root),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

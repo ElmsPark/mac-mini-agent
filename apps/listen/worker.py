@@ -1,77 +1,80 @@
-"""Job worker -- runs a Claude Code agent in a tmux session.
+"""Job worker -- runs a Claude Code agent via the Agent SDK.
 
-Creates a detached tmux session, sends the claude command with sentinel
-markers, polls for completion (with timeout), then updates the job YAML.
+Uses claude_agent_sdk.query() instead of tmux/sentinel. The agent gets
+built-in tools (Bash, Read, Edit, etc.), loads skills from .claude/skills/,
+and streams structured messages back. No tmux, no sentinel, no polling.
 """
 
+import asyncio
 import os
-import re
-import subprocess
 import sys
 import time
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
 
-SENTINEL_PREFIX = "__JOBDONE_"
-POLL_INTERVAL = 2.0
 # Maximum job duration: 30 minutes. Prevents infinite API credit burn.
 MAX_JOB_SECONDS = 30 * 60
 
 
-def _tmux(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    """Run a tmux command."""
-    return subprocess.run(["tmux", *args], capture_output=True, text=True, check=check)
+def _update_job(job_file: Path, **fields):
+    """Update fields in the job YAML file."""
+    with open(job_file) as f:
+        data = yaml.safe_load(f)
+    data.update(fields)
+    with open(job_file, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
-def _session_exists(name: str) -> bool:
-    result = _tmux("has-session", "-t", name, check=False)
-    return result.returncode == 0
+async def run_agent(job_id: str, prompt: str, job_file: Path, repo_root: Path):
+    """Run the agent via the SDK and stream results into the job YAML."""
+    from claude_agent_sdk import query, ClaudeAgentOptions
 
-
-def _create_session(session_name: str, cwd: str) -> None:
-    """Create a detached tmux session (headless, no Terminal.app window)."""
-    _tmux("new-session", "-d", "-s", session_name, "-c", cwd)
-    # Verify session was created
-    deadline = time.monotonic() + 5.0
-    while time.monotonic() < deadline:
-        if _session_exists(session_name):
-            return
-        time.sleep(0.2)
-    raise RuntimeError(f"tmux session '{session_name}' did not appear within 5s")
-
-
-def _send_keys(session: str, keys: str) -> None:
-    """Send keys to tmux session then press Enter."""
-    _tmux("send-keys", "-t", f"{session}:", keys)
-    _tmux("send-keys", "-t", f"{session}:", "Enter")
-
-
-def _capture_pane(session: str) -> str:
-    result = _tmux("capture-pane", "-p", "-t", f"{session}:", "-S", "-500")
-    return result.stdout
-
-
-def _wait_for_sentinel(session: str, token: str, timeout: int = MAX_JOB_SECONDS) -> int:
-    """Poll until sentinel appears or timeout is reached.
-
-    Returns the exit code from the sentinel, or -1 if timed out.
-    """
-    pattern = re.compile(
-        rf"^{re.escape(SENTINEL_PREFIX)}{token}:(\d+)\s*$", re.MULTILINE
+    # Build the system prompt with job ID
+    sys_prompt_file = (
+        repo_root / ".claude" / "agents" / "listen-drive-and-steer-system-prompt.md"
     )
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        time.sleep(POLL_INTERVAL)
-        captured = _capture_pane(session)
-        match = pattern.search(captured)
-        if match:
-            return int(match.group(1))
-    # Timed out
-    print(f"TIMEOUT: Job exceeded {timeout}s limit.", file=sys.stderr)
-    return -1
+    sys_prompt = sys_prompt_file.read_text().replace("{{JOB_ID}}", job_id)
+
+    # Build the user prompt (same content as the slash command template)
+    user_prompt_file = (
+        repo_root / ".claude" / "commands" / "listen-drive-and-steer-user-prompt.md"
+    )
+    user_prompt_template = user_prompt_file.read_text()
+    # Strip the YAML frontmatter
+    if user_prompt_template.startswith("---"):
+        _, _, user_prompt_template = user_prompt_template.split("---", 2)
+    user_prompt = user_prompt_template.replace("$ARGUMENTS", prompt).strip()
+
+    # Combine system and user prompts
+    full_system = sys_prompt + "\n\n" + user_prompt
+
+    result_text = ""
+    exit_code = 0
+
+    try:
+        async for message in query(
+            prompt=prompt,
+            options=ClaudeAgentOptions(
+                system_prompt=full_system,
+                allowed_tools=[
+                    "Bash", "Read", "Write", "Edit",
+                    "Glob", "Grep", "Agent",
+                ],
+                cwd=str(repo_root),
+                max_turns=50,
+            ),
+        ):
+            # Extract the final result text
+            if hasattr(message, "result") and message.result:
+                result_text = str(message.result)
+
+    except Exception as e:
+        result_text = f"Agent error: {e}"
+        exit_code = 1
+
+    return exit_code, result_text
 
 
 def main():
@@ -90,31 +93,9 @@ def main():
         sys.exit(1)
 
     repo_root = Path(__file__).parent.parent.parent
-    sys_prompt_file = (
-        repo_root / ".claude" / "agents" / "listen-drive-and-steer-system-prompt.md"
-    )
-    sys_prompt = sys_prompt_file.read_text().replace("{{JOB_ID}}", job_id)
 
-    # Write system prompt to a temp file to avoid shell escaping issues
-    sys_prompt_tmp = Path(f"/tmp/steer-sysprompt-{job_id}.txt")
-    sys_prompt_tmp.write_text(sys_prompt)
-
-    # Write user prompt to a temp file to avoid tmux send-keys truncation
-    prompt_tmp = Path(f"/tmp/steer-prompt-{job_id}.txt")
-    prompt_tmp.write_text(f"/listen-drive-and-steer-user-prompt {prompt}")
-
-    session_name = f"job-{job_id}"
-    token = uuid.uuid4().hex[:8]
-
-    # Build the claude command -- one-shot mode (-p) so it exits when done
-    claude_cmd = (
-        f"claude -p --dangerously-skip-permissions"
-        f' --append-system-prompt "$(cat {sys_prompt_tmp})"'
-        f' "$(cat {prompt_tmp})"'
-    )
-
-    # Wrap with sentinel: <cmd> ; echo "__JOBDONE_<token>:$?"
-    wrapped = f'{claude_cmd} ; echo "{SENTINEL_PREFIX}{token}:$?"'
+    # Change to repo root so the SDK finds .claude/skills/
+    os.chdir(repo_root)
 
     start_time = time.time()
 
@@ -124,50 +105,49 @@ def main():
     os.environ.update(env_clean)
 
     try:
-        # Create detached tmux session (headless, no Terminal.app window)
-        _create_session(session_name, str(repo_root))
-
-        # Send the wrapped command
-        _send_keys(session_name, wrapped)
-
-        # Update job with session info
-        with open(job_file) as f:
-            data = yaml.safe_load(f)
-        data["session"] = session_name
-        with open(job_file, "w") as f:
-            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
-
-        # Wait for completion with timeout (default 30 minutes)
-        exit_code = _wait_for_sentinel(session_name, token)
-
+        # Run the agent with a timeout
+        exit_code, result_text = asyncio.run(
+            asyncio.wait_for(
+                run_agent(job_id, prompt, job_file, repo_root),
+                timeout=MAX_JOB_SECONDS,
+            )
+        )
+    except asyncio.TimeoutError:
+        exit_code = -1
+        result_text = f"Job exceeded {MAX_JOB_SECONDS}s timeout."
+        print(f"TIMEOUT: {result_text}", file=sys.stderr)
     except Exception as e:
         exit_code = 1
+        result_text = f"Worker error: {e}"
         print(f"Worker error: {e}", file=sys.stderr)
 
     duration = round(time.time() - start_time)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    # Determine status
+    if exit_code == -1:
+        status = "timeout"
+    elif exit_code == 0:
+        status = "completed"
+    else:
+        status = "failed"
+
+    # Write final state -- the agent may have already updated the YAML
+    # with progress/summary via yq, so re-read before writing
+    _update_job(
+        job_file,
+        status=status,
+        exit_code=exit_code,
+        duration_seconds=duration,
+        completed_at=now,
+    )
+
+    # If the agent wrote a summary via yq, it's already in the YAML.
+    # If it didn't (error/timeout), write the result text as summary.
     with open(job_file) as f:
         data = yaml.safe_load(f)
-
-    if exit_code == -1:
-        data["status"] = "timeout"
-    elif exit_code == 0:
-        data["status"] = "completed"
-    else:
-        data["status"] = "failed"
-    data["exit_code"] = exit_code
-    data["duration_seconds"] = duration
-    data["completed_at"] = now
-
-    with open(job_file, "w") as f:
-        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
-
-    # Clean up
-    sys_prompt_tmp.unlink(missing_ok=True)
-    prompt_tmp.unlink(missing_ok=True)
-    if _session_exists(session_name):
-        _tmux("kill-session", "-t", session_name, check=False)
+    if not data.get("summary"):
+        _update_job(job_file, summary=result_text[:500] if result_text else "")
 
 
 if __name__ == "__main__":
