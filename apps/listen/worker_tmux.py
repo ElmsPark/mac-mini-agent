@@ -118,8 +118,12 @@ def main():
 
     start_time = time.time()
 
-    # Strip CLAUDECODE from env so nested claude doesn't conflict
-    env_clean = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    # Strip CLAUDECODE and ANTHROPIC_API_KEY from env.
+    # CLAUDECODE: prevents nested claude conflicts.
+    # ANTHROPIC_API_KEY: forces CLI to use Max subscription auth
+    # instead of pay-per-token API billing.
+    strip_keys = {"CLAUDECODE", "ANTHROPIC_API_KEY"}
+    env_clean = {k: v for k, v in os.environ.items() if k not in strip_keys}
     os.environ.clear()
     os.environ.update(env_clean)
 
