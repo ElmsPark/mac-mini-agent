@@ -1,7 +1,7 @@
-"""Job worker — runs a Claude Code agent in a visible Terminal window.
+"""Job worker -- runs a Claude Code agent in a tmux session.
 
-Creates a headed tmux session, sends the claude command with sentinel
-markers, polls for completion, then updates the job YAML.
+Creates a detached tmux session, sends the claude command with sentinel
+markers, polls for completion (with timeout), then updates the job YAML.
 """
 
 import os
@@ -17,6 +17,8 @@ import yaml
 
 SENTINEL_PREFIX = "__JOBDONE_"
 POLL_INTERVAL = 2.0
+# Maximum job duration: 30 minutes. Prevents infinite API credit burn.
+MAX_JOB_SECONDS = 30 * 60
 
 
 def _tmux(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -29,16 +31,10 @@ def _session_exists(name: str) -> bool:
     return result.returncode == 0
 
 
-def _open_terminal(session_name: str, cwd: str) -> None:
-    """Open a new Terminal.app window with a tmux session attached."""
-    tmux_cmd = f"cd '{cwd}' && tmux new-session -A -s {session_name}"
-    escaped = tmux_cmd.replace("\\", "\\\\").replace('"', '\\"')
-    subprocess.run(
-        ["osascript", "-e", f'tell application "Terminal" to do script "{escaped}"'],
-        capture_output=True,
-        text=True,
-    )
-    # Wait for session to appear
+def _create_session(session_name: str, cwd: str) -> None:
+    """Create a detached tmux session (headless, no Terminal.app window)."""
+    _tmux("new-session", "-d", "-s", session_name, "-c", cwd)
+    # Verify session was created
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
         if _session_exists(session_name):
@@ -58,17 +54,24 @@ def _capture_pane(session: str) -> str:
     return result.stdout
 
 
-def _wait_for_sentinel(session: str, token: str) -> int:
-    """Poll until sentinel appears. No timeout — waits forever."""
+def _wait_for_sentinel(session: str, token: str, timeout: int = MAX_JOB_SECONDS) -> int:
+    """Poll until sentinel appears or timeout is reached.
+
+    Returns the exit code from the sentinel, or -1 if timed out.
+    """
     pattern = re.compile(
         rf"^{re.escape(SENTINEL_PREFIX)}{token}:(\d+)\s*$", re.MULTILINE
     )
-    while True:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
         time.sleep(POLL_INTERVAL)
         captured = _capture_pane(session)
         match = pattern.search(captured)
         if match:
             return int(match.group(1))
+    # Timed out
+    print(f"TIMEOUT: Job exceeded {timeout}s limit.", file=sys.stderr)
+    return -1
 
 
 def main():
@@ -103,9 +106,9 @@ def main():
     session_name = f"job-{job_id}"
     token = uuid.uuid4().hex[:8]
 
-    # Build the claude command — read prompt from file to avoid truncation
+    # Build the claude command -- one-shot mode (-p) so it exits when done
     claude_cmd = (
-        f"claude --dangerously-skip-permissions"
+        f"claude -p --dangerously-skip-permissions"
         f' --append-system-prompt "$(cat {sys_prompt_tmp})"'
         f' "$(cat {prompt_tmp})"'
     )
@@ -121,8 +124,8 @@ def main():
     os.environ.update(env_clean)
 
     try:
-        # Open headed Terminal window with tmux session
-        _open_terminal(session_name, str(repo_root))
+        # Create detached tmux session (headless, no Terminal.app window)
+        _create_session(session_name, str(repo_root))
 
         # Send the wrapped command
         _send_keys(session_name, wrapped)
@@ -134,7 +137,7 @@ def main():
         with open(job_file, "w") as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
-        # Wait for completion — no timeout
+        # Wait for completion with timeout (default 30 minutes)
         exit_code = _wait_for_sentinel(session_name, token)
 
     except Exception as e:
@@ -147,7 +150,12 @@ def main():
     with open(job_file) as f:
         data = yaml.safe_load(f)
 
-    data["status"] = "completed" if exit_code == 0 else "failed"
+    if exit_code == -1:
+        data["status"] = "timeout"
+    elif exit_code == 0:
+        data["status"] = "completed"
+    else:
+        data["status"] = "failed"
     data["exit_code"] = exit_code
     data["duration_seconds"] = duration
     data["completed_at"] = now

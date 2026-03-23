@@ -8,8 +8,9 @@ from pathlib import Path
 from uuid import uuid4
 
 import yaml
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Security
 from fastapi.responses import PlainTextResponse
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -18,13 +19,26 @@ JOBS_DIR = Path(__file__).parent / "jobs"
 JOBS_DIR.mkdir(exist_ok=True)
 ARCHIVED_DIR = JOBS_DIR / "archived"
 
+# API key authentication -- key loaded from LISTEN_API_KEY env var.
+# If the env var is not set, auth is disabled (local dev convenience).
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+LISTEN_API_KEY = os.environ.get("LISTEN_API_KEY", "")
+
+
+def _verify_api_key(key: str = Security(_api_key_header)):
+    """Reject requests with a missing or wrong API key (if auth is enabled)."""
+    if not LISTEN_API_KEY:
+        return  # Auth disabled when env var is empty
+    if key != LISTEN_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
 
 class JobRequest(BaseModel):
     prompt: str
 
 
 @app.post("/job")
-def create_job(req: JobRequest):
+def create_job(req: JobRequest, _auth=Depends(_verify_api_key)):
     job_id = uuid4().hex[:8]
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -61,7 +75,7 @@ def create_job(req: JobRequest):
 
 
 @app.get("/job/{job_id}", response_class=PlainTextResponse)
-def get_job(job_id: str):
+def get_job(job_id: str, _auth=Depends(_verify_api_key)):
     job_file = JOBS_DIR / f"{job_id}.yaml"
     if not job_file.exists():
         raise HTTPException(status_code=404, detail="Job not found")
@@ -69,7 +83,7 @@ def get_job(job_id: str):
 
 
 @app.get("/jobs", response_class=PlainTextResponse)
-def list_jobs(archived: bool = False):
+def list_jobs(archived: bool = False, _auth=Depends(_verify_api_key)):
     search_dir = ARCHIVED_DIR if archived else JOBS_DIR
     jobs = []
     for f in sorted(search_dir.glob("*.yaml")):
@@ -86,7 +100,7 @@ def list_jobs(archived: bool = False):
 
 
 @app.post("/jobs/clear")
-def clear_jobs():
+def clear_jobs(_auth=Depends(_verify_api_key)):
     ARCHIVED_DIR.mkdir(exist_ok=True)
     count = 0
     for f in JOBS_DIR.glob("*.yaml"):
@@ -96,7 +110,7 @@ def clear_jobs():
 
 
 @app.delete("/job/{job_id}")
-def stop_job(job_id: str):
+def stop_job(job_id: str, _auth=Depends(_verify_api_key)):
     job_file = JOBS_DIR / f"{job_id}.yaml"
     if not job_file.exists():
         raise HTTPException(status_code=404, detail="Job not found")

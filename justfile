@@ -128,9 +128,28 @@ steer-pi prompt:
         pi --skill .claude/skills --prompt-template .claude/commands "/listen-drive-and-steer-user-prompt {{prompt}}"
     fi
 
+# --- PageMotor shortcuts ---
+
+# Smoke test all PageMotor sites
+pm-smoke:
+    just send "Run HTTP smoke tests on all PageMotor sites. For each site, curl the homepage and report the HTTP status code and whether the response body contains any PHP fatal errors. Sites: buildtheweb.site, helenmillar.com, birdsofbannowbay.com, epemail.elmspark.com, epbookings.elmspark.com, epgdpr.elmspark.com, epnewsletter.elmspark.com"
+
+# Build a specific plugin
+pm-build plugin:
+    just send "Build the {{plugin}} plugin by running: bash /Users/kennjordan/Developer/elmspark/plugins/{{plugin}}/build.sh — then verify the ZIP was created in the dist/ directory and list its contents."
+
+# Build and deploy a plugin to dev site
+pm-deploy plugin:
+    just send "Build the {{plugin}} plugin by running bash /Users/kennjordan/Developer/elmspark/plugins/{{plugin}}/build.sh, then deploy it to the dev site (cc-dev20260302.buildtheweb.site) via SFTP. After deployment, curl the dev site homepage and verify it returns 200 with no PHP fatal errors."
+
 # --- Demo walkthrough ---
 # 1. just listen          (start server in one terminal)
 # 2. just send "prompt"   (kick off a job from another terminal)
 # 3. just jobs            (see all jobs)
 # 4. just job <id>        (check a specific job)
 # 5. just stop <id>       (kill a running job)
+#
+# --- PageMotor shortcuts ---
+# just pm-smoke                    (smoke test all sites)
+# just pm-build ep-email           (build a specific plugin)
+# just pm-deploy ep-email          (build + deploy to dev site)
