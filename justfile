@@ -14,9 +14,13 @@ default:
 listen:
     cd apps/listen && uv run python main.py
 
-# Send a job to the listen server
+# Send a job to the listen server (default: SDK worker)
 send prompt url=default_url:
     cd apps/direct && uv run python main.py start {{url}} "{{prompt}}"
+
+# Send a job using the fast tmux/CLI worker
+send-fast prompt url=default_url:
+    cd apps/direct && uv run python main.py start {{url}} "{{prompt}}" --mode fast
 
 # Send a job from a local file
 sendf file url=default_url:
@@ -193,10 +197,17 @@ pm-spec spec:
 
 # --- Reference ---
 # 1. just listen          (start server in one terminal)
-# 2. just send "prompt"   (kick off a job from another terminal)
+# 2. just send "prompt"   (SDK worker, richer but slower)
+# 2b.just send-fast "p"   (tmux worker, faster for quick jobs)
 # 3. just jobs            (see all jobs)
 # 4. just job <id>        (check a specific job)
 # 5. just stop <id>       (kill a running job)
+#
+# --- Worker modes ---
+# SDK (default):  Agent SDK query(), structured messages, hooks-ready
+# Fast (tmux):    Claude CLI via tmux, ~3x faster for simple jobs
+# Set globally:   WORKER_MODE=fast in .env
+# Set per-job:    just send-fast "prompt"
 #
 # --- Phase 1: Terminal testing ---
 # just pm-smoke                    (smoke test all sites)

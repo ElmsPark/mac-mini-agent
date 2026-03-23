@@ -35,12 +35,22 @@ def _verify_api_key(key: str = Security(_api_key_header)):
 
 class JobRequest(BaseModel):
     prompt: str
+    mode: str = ""  # "fast" for tmux worker, empty/"sdk" for Agent SDK worker
+
+
+# Default worker mode: "sdk" (Agent SDK) or "fast" (tmux/CLI).
+# Override per-job via the mode field, or globally via WORKER_MODE env var.
+DEFAULT_WORKER_MODE = os.environ.get("WORKER_MODE", "sdk")
 
 
 @app.post("/job")
 def create_job(req: JobRequest, _auth=Depends(_verify_api_key)):
     job_id = uuid4().hex[:8]
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    mode = req.mode or DEFAULT_WORKER_MODE
+    if mode not in ("sdk", "fast"):
+        mode = "sdk"
 
     job_data = {
         "id": job_id,
@@ -50,6 +60,7 @@ def create_job(req: JobRequest, _auth=Depends(_verify_api_key)):
         "pid": 0,
         "updates": [],
         "summary": "",
+        "mode": mode,
     }
 
     # Write YAML before spawning worker (worker reads it on startup)
@@ -57,8 +68,12 @@ def create_job(req: JobRequest, _auth=Depends(_verify_api_key)):
     with open(job_file, "w") as f:
         yaml.dump(job_data, f, default_flow_style=False, sort_keys=False)
 
-    # Spawn the worker process (cwd = repo root so SDK finds .claude/skills/)
-    worker_path = Path(__file__).parent / "worker.py"
+    # Pick worker: "fast" uses tmux/CLI (faster), "sdk" uses Agent SDK (richer)
+    if mode == "fast":
+        worker_path = Path(__file__).parent / "worker_tmux.py"
+    else:
+        worker_path = Path(__file__).parent / "worker.py"
+
     repo_root = Path(__file__).parent.parent.parent
     proc = subprocess.Popen(
         [sys.executable, str(worker_path), job_id, req.prompt],
@@ -72,7 +87,7 @@ def create_job(req: JobRequest, _auth=Depends(_verify_api_key)):
     with open(job_file, "w") as f:
         yaml.dump(job_data, f, default_flow_style=False, sort_keys=False)
 
-    return {"job_id": job_id, "status": "running"}
+    return {"job_id": job_id, "status": "running", "mode": mode}
 
 
 @app.get("/job/{job_id}", response_class=PlainTextResponse)
