@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sshpass*)",
+      "Bash(curl*)",
+      "Bash(sftp*)",
+      "Bash(*steer*)",
+      "Bash(tmux*)",
+      "Bash(*pm-smoke*)",
+      "Bash(*pm-deploy*)",
+      "Bash(*pm-rollback*)",
+      "Bash(*pm-browser*)",
+      "Bash(*pm-visual*)",
+      "Bash(*pm-cron*)",
+      "Bash(just *)",
+      "Bash(swift build*)",
+      "Bash(uv run*)",
+      "Bash(source .env*)",
+      "Bash(chmod*)",
+      "Bash(git *)",
+      "Bash(rm -f /tmp/*)",
+      "Bash(mkdir*)",
+      "Bash(kill*)",
+      "Bash(launchctl*)",
+      "Bash(lsof*)",
+      "Bash(python3*spike*)",
+      "mcp__playwright*"
+    ]
+  },
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"],
+      "env": {}
+    }
+  }
+}
