@@ -32,6 +32,8 @@ ALL_SITES=(
   "https://nosampling.com"
   "https://everytanisdamage.com"
   "https://dev2.elmspark.com"
+  "https://dev3.elmspark.com"
+  "https://dev4.elmspark.com"
   "https://cc-dev20260302.buildtheweb.site"
 )
 
