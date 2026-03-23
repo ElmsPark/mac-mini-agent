@@ -91,16 +91,22 @@ bash /Users/kennjordan/Developer/elmspark/mac-mini-agent/scripts/pm-deploy.sh <p
 
 ### All Sites (for smoke testing only)
 
-| Site | URL |
-|------|-----|
-| buildtheweb.site | https://buildtheweb.site |
-| helenmillar.com | https://helenmillar.com |
-| birdsofbannowbay.com | https://birdsofbannowbay.com |
-| epemail.elmspark.com | https://epemail.elmspark.com |
-| epbookings.elmspark.com | https://epbookings.elmspark.com |
-| epgdpr.elmspark.com | https://epgdpr.elmspark.com |
-| epnewsletter.elmspark.com | https://epnewsletter.elmspark.com |
-| cc-dev20260302.buildtheweb.site | https://cc-dev20260302.buildtheweb.site |
+| Site | URL | SFTP Path |
+|------|-----|-----------|
+| buildtheweb.site | https://buildtheweb.site | `/buildtheweb` |
+| helenmillar.com | https://helenmillar.com | `/helenmillar` |
+| birdsofbannowbay.com | https://birdsofbannowbay.com | `/clickandbuilds/BirdsofBannowBay` |
+| epemail.elmspark.com | https://epemail.elmspark.com | `/pm2` |
+| epbookings.elmspark.com | https://epbookings.elmspark.com | `/epbookings` |
+| epgdpr.elmspark.com | https://epgdpr.elmspark.com | `/epgdpr` |
+| epnewsletter.elmspark.com | https://epnewsletter.elmspark.com | `/epnewsletter` |
+| demo.elmspark.com | https://demo.elmspark.com | `/dev.forms` |
+| oej.elmspark.com | https://oej.elmspark.com | `/oej` |
+| k9.elmspark.com | https://k9.elmspark.com | `/k9` |
+| miraclebibleway.com | https://miraclebibleway.com | `/miraclebibleway` |
+| nosampling.com | https://nosampling.com | `/nosampling` |
+| everytanisdamage.com | https://everytanisdamage.com | `/sun` |
+| cc-dev20260302.buildtheweb.site | https://cc-dev20260302.buildtheweb.site | `/buildtheweb-dev` |
 
 ## Workflows
 

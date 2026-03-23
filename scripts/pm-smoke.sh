@@ -25,6 +25,12 @@ ALL_SITES=(
   "https://epbookings.elmspark.com"
   "https://epgdpr.elmspark.com"
   "https://epnewsletter.elmspark.com"
+  "https://demo.elmspark.com"
+  "https://oej.elmspark.com"
+  "https://k9.elmspark.com"
+  "https://miraclebibleway.com"
+  "https://nosampling.com"
+  "https://everytanisdamage.com"
   "https://cc-dev20260302.buildtheweb.site"
 )
 
