@@ -11,10 +11,13 @@
  *
  * ALWAYS runs headless. NEVER adds --v to prompts.
  */
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { writeFileSync, mkdirSync, unlinkSync, readFileSync } from 'fs';
 import { execSync } from 'child_process';
 import { dirname, join } from 'path';
+
+chromium.use(StealthPlugin());
 
 const profilePath = process.argv[2];
 const outputDir = process.argv[3];
