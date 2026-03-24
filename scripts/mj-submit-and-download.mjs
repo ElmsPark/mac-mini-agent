@@ -149,66 +149,86 @@ try {
     await page.waitForTimeout(5000);
   }
 
-  // Wait for all generations to complete
-  console.log('\nAll prompts submitted. Waiting 60s for generations...');
-  await page.waitForTimeout(60000);
-
-  // Go to archive and download
-  console.log('\nNavigating to archive to download images...');
-  await page.goto('https://alpha.midjourney.com/archive', { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.waitForTimeout(3000);
-
-  // Take a screenshot of the archive
-  await page.screenshot({ path: join(outputDir, 'archive.png'), fullPage: false });
-
-  // Find all generation thumbnails
-  const images = await page.$$('img[src*="cdn.midjourney.com"]');
-  console.log(`Found ${images.length} Midjourney images in archive`);
-
-  // Download the first image from each generation (up to prompts.length)
+  // Poll the archive until we have enough images
+  const MAX_POLL_TIME = 15 * 60 * 1000; // 15 minutes max
+  const POLL_INTERVAL = 30 * 1000;       // check every 30s
+  const startTime = Date.now();
   let downloaded = 0;
   const seen = new Set();
 
-  for (const img of images) {
-    if (downloaded >= prompts.length) break;
+  console.log(`\nAll ${prompts.length} prompts submitted. Polling archive for results (up to 15 min)...`);
 
-    const src = await img.getAttribute('src');
-    if (!src || seen.has(src)) continue;
+  while (downloaded < prompts.length && (Date.now() - startTime) < MAX_POLL_TIME) {
+    await page.goto('https://alpha.midjourney.com/archive', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForTimeout(3000);
+    await handleCloudflare(page);
+    await page.waitForTimeout(2000);
 
-    // Get a higher-res version by modifying the URL
-    const fullSrc = src.replace(/\/w_\d+/, '/w_1024').replace(/,h_\d+/, '');
-    seen.add(src);
+    // Screenshot archive state for debugging
+    await page.screenshot({ path: join(outputDir, `archive-poll-${Math.floor((Date.now() - startTime) / 1000)}s.png`), fullPage: false });
 
-    const outFile = prompts[downloaded].filename;
-    const pngPath = join(outputDir, outFile.replace('.webp', '.png'));
-    const webpPath = join(outputDir, outFile);
+    // Find all generation thumbnails
+    const images = await page.$$('img[src*="cdn.midjourney.com"]');
+    const available = images.length;
+    console.log(`  [${Math.floor((Date.now() - startTime) / 1000)}s] Found ${available} images in archive, downloaded ${downloaded}/${prompts.length} so far`);
 
-    try {
-      console.log(`  Downloading [${downloaded + 1}/${prompts.length}]: ${outFile}`);
+    if (available === 0) {
+      console.log(`  No images yet. Waiting ${POLL_INTERVAL / 1000}s...`);
+      await page.waitForTimeout(POLL_INTERVAL);
+      continue;
+    }
 
-      const base64 = await page.evaluate(async (imgUrl) => {
-        const resp = await fetch(imgUrl);
-        const blob = await resp.blob();
-        return new Promise(resolve => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result.split(',')[1]);
-          reader.readAsDataURL(blob);
-        });
-      }, fullSrc);
+    // Try to download any new images we haven't seen
+    for (const img of images) {
+      if (downloaded >= prompts.length) break;
 
-      writeFileSync(pngPath, Buffer.from(base64, 'base64'));
-      execSync(`cwebp -q 80 "${pngPath}" -o "${webpPath}"`);
-      unlinkSync(pngPath);
+      const src = await img.getAttribute('src');
+      if (!src || seen.has(src)) continue;
 
-      const stats = execSync(`ls -la "${webpPath}"`).toString().trim();
-      console.log(`  Saved: ${stats.split(/\s+/)[4]} bytes`);
-      downloaded++;
-    } catch (err) {
-      console.error(`  Failed to download: ${err.message}`);
+      // Get a higher-res version
+      const fullSrc = src.replace(/\/w_\d+/, '/w_1024').replace(/,h_\d+/, '');
+      seen.add(src);
+
+      const outFile = prompts[downloaded].filename;
+      const pngPath = join(outputDir, outFile.replace('.webp', '.png'));
+      const webpPath = join(outputDir, outFile);
+
+      try {
+        console.log(`  Downloading [${downloaded + 1}/${prompts.length}]: ${outFile}`);
+
+        const base64 = await page.evaluate(async (imgUrl) => {
+          const resp = await fetch(imgUrl);
+          const blob = await resp.blob();
+          return new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result.split(',')[1]);
+            reader.readAsDataURL(blob);
+          });
+        }, fullSrc);
+
+        writeFileSync(pngPath, Buffer.from(base64, 'base64'));
+        execSync(`cwebp -q 80 "${pngPath}" -o "${webpPath}"`);
+        unlinkSync(pngPath);
+
+        const stats = execSync(`ls -la "${webpPath}"`).toString().trim();
+        console.log(`  Saved: ${stats.split(/\s+/)[4]} bytes`);
+        downloaded++;
+      } catch (err) {
+        console.error(`  Failed to download: ${err.message}`);
+      }
+    }
+
+    if (downloaded < prompts.length) {
+      console.log(`  ${prompts.length - downloaded} remaining. Waiting ${POLL_INTERVAL / 1000}s...`);
+      await page.waitForTimeout(POLL_INTERVAL);
     }
   }
 
-  console.log(`\nDone. Downloaded ${downloaded}/${prompts.length} images.`);
+  if (downloaded < prompts.length) {
+    console.log(`\nTimed out after ${MAX_POLL_TIME / 1000}s. Downloaded ${downloaded}/${prompts.length} images.`);
+  } else {
+    console.log(`\nDone. Downloaded ${downloaded}/${prompts.length} images.`);
+  }
 
 } catch (err) {
   console.error('Fatal error:', err.message);
