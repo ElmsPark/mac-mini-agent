@@ -35,12 +35,14 @@ def _verify_api_key(key: str = Security(_api_key_header)):
 
 class JobRequest(BaseModel):
     prompt: str
-    mode: str = ""  # "fast" for tmux worker, empty/"sdk" for Agent SDK worker
+    mode: str = ""  # "direct" (default), "fast" (tmux), "sdk" (Agent SDK)
 
 
-# Default worker mode: "sdk" (Agent SDK) or "fast" (tmux/CLI).
-# Override per-job via the mode field, or globally via WORKER_MODE env var.
-DEFAULT_WORKER_MODE = os.environ.get("WORKER_MODE", "sdk")
+# Worker modes:
+#   "direct" -- subprocess.run() with claude -p. Works under launchd. Uses Max subscription.
+#   "fast"   -- tmux session with claude -p. Only works in a terminal (not launchd).
+#   "sdk"    -- Agent SDK query(). Requires ANTHROPIC_API_KEY (separate billing).
+DEFAULT_WORKER_MODE = os.environ.get("WORKER_MODE", "direct")
 
 
 @app.post("/job")
@@ -68,18 +70,34 @@ def create_job(req: JobRequest, _auth=Depends(_verify_api_key)):
     with open(job_file, "w") as f:
         yaml.dump(job_data, f, default_flow_style=False, sort_keys=False)
 
-    # Pick worker: "fast" uses tmux/CLI (faster), "sdk" uses Agent SDK (richer)
+    # Pick worker based on mode
     if mode == "fast":
         worker_path = Path(__file__).parent / "worker_tmux.py"
-    else:
+    elif mode == "sdk":
         worker_path = Path(__file__).parent / "worker.py"
+    else:  # "direct" (default) -- works under launchd, uses Max subscription
+        worker_path = Path(__file__).parent / "worker_direct.py"
 
     repo_root = Path(__file__).parent.parent.parent
+    worker_log = JOBS_DIR / f"{job_id}.log"
+
+    # Debug: log the exact command and environment
+    with open(worker_log, "w") as dbg:
+        dbg.write(f"python: {sys.executable}\n")
+        dbg.write(f"worker: {worker_path}\n")
+        dbg.write(f"exists: {worker_path.exists()}\n")
+        dbg.write(f"cwd: {repo_root}\n")
+        dbg.write(f"PATH: {os.environ.get('PATH', 'NOT SET')}\n")
+        dbg.write(f"ANTHROPIC_API_KEY: {'set' if os.environ.get('ANTHROPIC_API_KEY') else 'NOT SET'}\n")
+        dbg.flush()
+
+    log_fh = open(worker_log, "a")
     proc = subprocess.Popen(
         [sys.executable, str(worker_path), job_id, req.prompt],
         cwd=str(repo_root),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=log_fh,
+        stderr=log_fh,
+        start_new_session=True,
     )
 
     # Update PID after spawn

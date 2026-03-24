@@ -212,9 +212,12 @@ steer-verify:
 pm-login:
     bash scripts/pm-browser-login.sh
 
-# Browser-test a specific plugin's settings page
+# Browser-test a specific plugin's settings page (accepts ep-email or EP_Email format)
 pm-test plugin:
-    just send "Log into the PageMotor admin at cc-dev20260302.buildtheweb.site using the steer CLI. Navigate to /admin/plugins/?plugin={{plugin}}, take a screenshot with steer see, verify the page loads with no PHP errors (search for 'fatal error' and 'parse error'), verify form fields exist, and report pass/fail with the screenshot path."
+    #!/usr/bin/env bash
+    # Convert directory name to class name: ep-email -> EP_Email, ep-gdpr -> EP_GDPR
+    CLASS=$(echo "{{plugin}}" | sed 's/-/_/g' | sed 's/\b\(.\)/\u\1/g' | sed 's/^Ep_/EP_/')
+    just send "Log into the PageMotor admin at cc-dev20260302.buildtheweb.site using the steer CLI. Navigate to /admin/plugins/?plugin=${CLASS}, take a screenshot with steer see, verify the page loads with no PHP errors (search for 'fatal error' and 'parse error'), verify form fields exist, and report pass/fail with the screenshot path."
 
 # Browser-test all plugin settings pages
 pm-test-all:

@@ -71,7 +71,9 @@ async def run_agent(job_id: str, prompt: str, job_file: Path, repo_root: Path):
                 result_text = str(message.result)
 
     except Exception as e:
-        result_text = f"Agent error: {e}"
+        import traceback
+        result_text = f"Agent error: {e}\n{traceback.format_exc()}"
+        print(result_text, file=sys.stderr)
         exit_code = 1
 
     return exit_code, result_text

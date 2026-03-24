@@ -21,8 +21,10 @@
 	<string>/Users/kennjordan/Developer/elmspark/mac-mini-agent</string>
 	<key>EnvironmentVariables</key>
 	<dict>
+		<key>HOME</key>
+		<string>/Users/kennjordan</string>
 		<key>PATH</key>
-		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<string>/Users/kennjordan/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
 	</dict>
 </dict>
 </plist>

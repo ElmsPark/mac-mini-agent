@@ -33,7 +33,9 @@ cd apps/steer && swift build -c release && cd ../..
 
 # Configure credentials
 cp .env.sample .env
-# Edit .env with your SFTP credentials, Anthropic API key, and admin login
+# Edit .env with your SFTP credentials and admin login
+# NOTE: Leave ANTHROPIC_API_KEY commented out to use your Max subscription (no extra cost)
+# Only uncomment it if you want to use API billing (costs extra per token)
 
 # Start the job server
 just listen
@@ -84,17 +86,20 @@ The AI agent reads a PageMotor-specific skill file (`.claude/skills/pagemotor/SK
 - **Credentials in `.env` only.** Gitignored. SFTP passwords passed via environment variable (`sshpass -e`), never on the command line.
 - **Job server requires API key.** All endpoints check the `X-API-Key` header.
 - **30-minute timeout.** Stuck jobs are killed automatically.
-- **Browser tests are read-only.** The agent verifies pages load but never clicks Save.
+- **Browser tests via Playwright.** Playwright (headless Chromium) handles admin login, form interaction, and plugin activation. Steer handles macOS-native GUI automation.
 - **No skill marketplace.** One hand-written skill file, checked into git.
 
-## Two Worker Modes
+## Three Worker Modes
 
-| Mode | Command | Speed | Auth | Best for |
-|------|---------|-------|------|----------|
-| **Fast** (default) | `just send-fast` | ~30-80s | Subscription or API key | Quick jobs, smoke tests |
-| **SDK** | `just send` | ~90s | API key only | Complex jobs, future hooks/subagents |
+| Mode | Command | Speed | Auth | launchd? | Best for |
+|------|---------|-------|------|----------|----------|
+| **Direct** (default) | `just send` | ~20-30s | Max subscription | YES | Everything, no extra cost |
+| **Fast** | `just send-fast` | ~30-80s | Max subscription | NO (terminal only) | Interactive use from a terminal |
+| **SDK** | `just send --mode sdk` | ~90s | API key only (extra cost) | YES | Hooks, subagents, structured events |
 
-Set the default in `.env` with `WORKER_MODE=fast` or `WORKER_MODE=sdk`.
+Set the default in `.env` with `WORKER_MODE=direct`.
+
+**Important:** If `ANTHROPIC_API_KEY` is set in `.env`, the `claude` CLI uses API billing instead of your Max subscription. Leave it commented out to avoid unexpected charges.
 
 ## Persistent Service
 
@@ -149,7 +154,8 @@ Structured browser test definitions in `specs/pm-tests/`:
 
 - macOS 13 or later
 - Homebrew, Swift (Xcode CLI Tools), tmux, just, uv, yq
-- Claude Code subscription or Anthropic API key
+- Node.js (for Playwright browser testing)
+- Claude Code with Max subscription (recommended) or API key
 - SFTP access to your PageMotor hosting
 
 ## Credits
