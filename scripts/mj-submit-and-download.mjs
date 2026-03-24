@@ -19,9 +19,12 @@ import { dirname, join } from 'path';
 const profilePath = process.argv[2];
 const outputDir = process.argv[3];
 const promptsFile = process.argv[4];
+const headlessFlag = process.argv.includes('--headless');
+const visibleFlag = process.argv.includes('--visible');
+const runHeadless = headlessFlag || !visibleFlag; // default headless unless --visible
 
 if (!profilePath || !outputDir || !promptsFile) {
-  console.error('Usage: node mj-submit-and-download.mjs <profile-path> <output-dir> <prompts-json-file>');
+  console.error('Usage: node mj-submit-and-download.mjs <profile-path> <output-dir> <prompts-json-file> [--visible|--headless]');
   process.exit(1);
 }
 
@@ -30,22 +33,27 @@ const prompts = JSON.parse(readFileSync(promptsFile, 'utf-8'));
 console.log(`Profile: ${profilePath}`);
 console.log(`Output: ${outputDir}`);
 console.log(`Prompts: ${prompts.length}`);
+console.log(`Mode: ${runHeadless ? 'headless' : 'visible'}`);
 
 // Create output directories
 for (const p of prompts) {
   mkdirSync(join(outputDir, dirname(p.filename)), { recursive: true });
 }
 
+const launchArgs = [
+  '--disable-infobars',
+  '--disable-session-crashed-bubble',
+  '--no-first-run',
+  '--no-default-browser-check',
+  '--disable-features=InfiniteSessionRestore'
+];
+if (!runHeadless) launchArgs.push('--force-dark-mode');
+
 const context = await chromium.launchPersistentContext(profilePath, {
-  headless: true,
+  headless: runHeadless,
   channel: 'chrome',
-  args: [
-    '--disable-infobars',
-    '--disable-session-crashed-bubble',
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--disable-features=InfiniteSessionRestore'
-  ]
+  ...(runHeadless ? {} : { colorScheme: 'dark' }),
+  args: launchArgs
 });
 
 const page = await context.newPage();
