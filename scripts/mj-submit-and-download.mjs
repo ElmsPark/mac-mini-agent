@@ -117,34 +117,33 @@ try {
   }
   console.log('Logged in. Current URL:', url);
 
-  // Submit each prompt
+  // Submit all prompts without reloading the page (avoids repeated Cloudflare)
+  const inputSelectors = [
+    'textarea[placeholder*="magine"]',
+    'textarea[placeholder*="rompt"]',
+    'textarea[data-testid*="prompt"]',
+    'textarea',
+    'input[placeholder*="magine"]',
+  ];
+
   for (let i = 0; i < prompts.length; i++) {
     const { prompt, filename } = prompts[i];
     console.log(`\n[${i + 1}/${prompts.length}] Submitting: ${prompt.substring(0, 60)}...`);
 
-    // Find the imagine input
-    await page.goto('https://alpha.midjourney.com/', { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(3000);
-    await handleCloudflare(page);
-    await page.waitForTimeout(2000);
-
-    // Look for the prompt input - try multiple selectors
-    const inputSelectors = [
-      'textarea[placeholder*="magine"]',
-      'textarea[placeholder*="rompt"]',
-      'textarea[data-testid*="prompt"]',
-      'textarea',
-      'input[placeholder*="magine"]',
-    ];
-
+    // Wait for the input to be available (it reappears after each submission)
     let input = null;
-    for (const sel of inputSelectors) {
-      input = await page.$(sel);
+    for (let retry = 0; retry < 10; retry++) {
+      for (const sel of inputSelectors) {
+        input = await page.$(sel);
+        if (input) break;
+      }
       if (input) break;
+      console.log('  Waiting for prompt input...');
+      await page.waitForTimeout(2000);
     }
 
     if (!input) {
-      console.error('Could not find prompt input. Taking screenshot.');
+      console.error('  Could not find prompt input after retries. Taking screenshot.');
       await page.screenshot({ path: join(outputDir, `error-no-input-${i}.png`) });
       continue;
     }
@@ -156,8 +155,8 @@ try {
 
     // Submit with Enter
     await page.keyboard.press('Enter');
-    console.log('  Submitted. Waiting for generation...');
-    await page.waitForTimeout(5000);
+    console.log('  Submitted.');
+    await page.waitForTimeout(3000);
   }
 
   // Poll the archive until we have enough images
