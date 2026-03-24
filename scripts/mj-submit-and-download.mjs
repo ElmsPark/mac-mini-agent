@@ -48,7 +48,8 @@ const launchArgs = [
   '--disable-session-crashed-bubble',
   '--no-first-run',
   '--no-default-browser-check',
-  '--disable-features=InfiniteSessionRestore'
+  '--disable-features=InfiniteSessionRestore',
+  '--disable-blink-features=AutomationControlled'
 ];
 if (!runHeadless) launchArgs.push('--force-dark-mode');
 
