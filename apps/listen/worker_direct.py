@@ -27,11 +27,18 @@ def _update_job(job_file: Path, **fields):
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: worker_direct.py <job_id> <prompt>")
+        print("Usage: worker_direct.py <job_id> <prompt> [--model sonnet|opus|haiku]")
         sys.exit(1)
 
     job_id = sys.argv[1]
     prompt = sys.argv[2]
+
+    # Parse optional --model flag
+    model = ""
+    if "--model" in sys.argv:
+        idx = sys.argv.index("--model")
+        if idx + 1 < len(sys.argv):
+            model = sys.argv[idx + 1]
 
     jobs_dir = Path(__file__).parent / "jobs"
     job_file = jobs_dir / f"{job_id}.yaml"
@@ -65,14 +72,18 @@ def main():
     import subprocess
 
     try:
+        cmd = [
+            "claude", "-p",
+            "--max-turns", "50",
+            "--output-format", "text",
+            "--dangerously-skip-permissions",
+            "--append-system-prompt", sys_prompt,
+        ]
+        if model:
+            cmd.extend(["--model", model])
+
         result = subprocess.run(
-            [
-                "claude", "-p",
-                "--max-turns", "50",
-                "--output-format", "text",
-                "--dangerously-skip-permissions",
-                "--append-system-prompt", sys_prompt,
-            ],
+            cmd,
             input=user_prompt,
             capture_output=True,
             text=True,

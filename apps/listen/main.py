@@ -36,6 +36,8 @@ def _verify_api_key(key: str = Security(_api_key_header)):
 class JobRequest(BaseModel):
     prompt: str
     mode: str = ""  # "direct" (default), "fast" (tmux), "sdk" (Agent SDK)
+    name: str = ""  # optional human-friendly name (e.g. "dev3")
+    model: str = ""  # "sonnet", "opus", or "" for default. Sonnet for mechanical tasks, Opus for creative/complex.
 
 
 # Worker modes:
@@ -51,8 +53,14 @@ def create_job(req: JobRequest, _auth=Depends(_verify_api_key)):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     mode = req.mode or DEFAULT_WORKER_MODE
-    if mode not in ("sdk", "fast"):
-        mode = "sdk"
+    if mode not in ("sdk", "fast", "direct"):
+        mode = "direct"
+
+    # If a name is given, use it as the job ID (overwrite previous job with same name)
+    if req.name:
+        job_id = req.name
+
+    model = req.model if req.model in ("sonnet", "opus", "haiku") else ""
 
     job_data = {
         "id": job_id,
@@ -63,6 +71,7 @@ def create_job(req: JobRequest, _auth=Depends(_verify_api_key)):
         "updates": [],
         "summary": "",
         "mode": mode,
+        "model": model,
     }
 
     # Write YAML before spawning worker (worker reads it on startup)
@@ -92,8 +101,12 @@ def create_job(req: JobRequest, _auth=Depends(_verify_api_key)):
         dbg.flush()
 
     log_fh = open(worker_log, "a")
+    worker_args = [sys.executable, str(worker_path), job_id, req.prompt]
+    if model:
+        worker_args.extend(["--model", model])
+
     proc = subprocess.Popen(
-        [sys.executable, str(worker_path), job_id, req.prompt],
+        worker_args,
         cwd=str(repo_root),
         stdout=log_fh,
         stderr=log_fh,

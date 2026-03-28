@@ -24,6 +24,16 @@
       "Bash(launchctl*)",
       "Bash(lsof*)",
       "Bash(python3*spike*)",
+      "Bash(ps *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(ls *)",
+      "Bash(sleep *)",
+      "Bash(echo *)",
+      "Bash(pkill*)",
+      "Bash(osascript*)",
       "mcp__playwright*"
     ]
   },

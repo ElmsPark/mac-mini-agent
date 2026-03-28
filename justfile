@@ -55,13 +55,40 @@ listen-status:
         echo "Install with: just listen-install"
     fi
 
-# Send a job to the listen server (default: SDK worker)
+# Send a job to the listen server
 send prompt url=default_url:
     cd apps/direct && uv run python main.py start {{url}} "{{prompt}}"
 
-# Send a job using the fast tmux/CLI worker
+# Send a named job (reuses the same ID each time)
+send-named name prompt url=default_url:
+    cd apps/direct && uv run python main.py start {{url}} "{{prompt}}" --name {{name}}
+
+# Send a job using the fast tmux/CLI worker (terminal only, not launchd)
 send-fast prompt url=default_url:
     cd apps/direct && uv run python main.py start {{url}} "{{prompt}}" --mode fast
+
+# --- Named Agents: dev2, dev3, dev4 ---
+# Each agent is locked to its own site. Check results with: just job dev2
+
+# Send a task to the dev2 agent (dev2.elmspark.com)
+dev2 prompt url=default_url:
+    cd apps/direct && uv run python main.py start {{url}} "You are the dev2 agent. You ONLY work on dev2.elmspark.com (SFTP path: /dev2). Do not touch any other site. Task: {{prompt}}" --name dev2
+
+# Send a task to the dev3 agent (dev3.elmspark.com)
+dev3 prompt url=default_url:
+    cd apps/direct && uv run python main.py start {{url}} "You are the dev3 agent. You ONLY work on dev3.elmspark.com (SFTP path: /dev3). Do not touch any other site. Task: {{prompt}}" --name dev3
+
+# Send a task to the dev4 agent (dev4.elmspark.com)
+dev4 prompt url=default_url:
+    cd apps/direct && uv run python main.py start {{url}} "You are the dev4 agent. You ONLY work on dev4.elmspark.com (SFTP path: /dev4). Do not touch any other site. Task: {{prompt}}" --name dev4
+
+# --- Midjourney Image Agent ---
+# Dedicated agent for generating and optimizing images via alpha.midjourney.com
+# Outputs to /tmp/steer/images/{site}/ as optimized WebP files
+
+# Send a task to MJ (Midjourney image agent)
+mj prompt url=default_url:
+    cd apps/direct && uv run python main.py start {{url}} "You are MJ, the Midjourney image agent. You generate images using alpha.midjourney.com via Playwright (from /Users/kennjordan/Developer/elmspark/mac-mini-agent/ where it's installed) with headless: false. After downloading images, convert them to optimized WebP using: cwebp -q 80 input.png -o output.webp. Save all output to /tmp/steer/images/ organised by site (dev2/, dev3/, dev4/). Task: {{prompt}}" --name mj
 
 # Send a job from a local file
 sendf file url=default_url:

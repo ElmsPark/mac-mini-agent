@@ -5,3 +5,11 @@ apps/listen/jobs/
 apps/listen/__pycache__/
 /tmp/
 *.pyc
+
+# Dev scratch scripts
+dev[0-9]-*.cjs
+dev[0-9]-*.mjs
+mj-*.cjs
+mj-*.mjs
+test-mj-*.mjs
+test-results/

@@ -11,10 +11,11 @@ def cli():
 @cli.command()
 @click.argument("url")
 @click.argument("prompt")
-@click.option("--mode", default="", help="Worker mode: 'fast' (tmux/CLI) or 'sdk' (Agent SDK)")
-def start(url: str, prompt: str, mode: str):
+@click.option("--mode", default="", help="Worker mode: 'direct', 'fast', or 'sdk'")
+@click.option("--name", default="", help="Named agent (e.g. 'dev3'). Reuses the same job ID.")
+def start(url: str, prompt: str, mode: str, name: str):
     """Start a new agent job."""
-    result = client.start_job(url, prompt, mode=mode)
+    result = client.start_job(url, prompt, mode=mode, name=name)
     click.echo(result["job_id"])
 
 

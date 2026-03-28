@@ -11,11 +11,13 @@ def _headers() -> dict:
     return {}
 
 
-def start_job(url: str, prompt: str, mode: str = "") -> dict:
+def start_job(url: str, prompt: str, mode: str = "", name: str = "") -> dict:
     """POST to url/job with prompt, returns response dict."""
     body = {"prompt": prompt}
     if mode:
         body["mode"] = mode
+    if name:
+        body["name"] = name
     response = httpx.post(f"{url}/job", json=body, headers=_headers())
     response.raise_for_status()
     return response.json()
